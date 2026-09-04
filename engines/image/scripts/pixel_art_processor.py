@@ -41,7 +41,7 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 # ---------------------------------------------------------------------------
 # Vendored core -- see the module docstring for provenance. Do not edit
@@ -475,10 +475,28 @@ def key_background_to_alpha(img: Image.Image, tolerance: int = 72) -> Image.Imag
     # Pick a sentinel the image cannot be confused with.
     sentinel = (255, 0, 255) if abs(key - np.array([255, 0, 255])).sum() > 90 else (0, 255, 0)
     work = rgb.copy()
-    seeds = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1),
-             (w // 2, 0), (w // 2, h - 1), (0, h // 2), (w - 1, h // 2)]
-    for seed in seeds:
-        if abs(np.array(work.getpixel(seed), dtype=int) - key).sum() <= tolerance:
+    anchors = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1),
+               (w // 2, 0), (w // 2, h - 1), (0, h // 2), (w - 1, h // 2)]
+
+    for ax, ay in anchors:
+        # Search a small window around each anchor for a pixel that actually
+        # matches the key, rather than trusting the single pixel there. A lone
+        # artefact pixel is common in the corners -- one SDXL render had a
+        # (166,255,255) speck in the bottom-left, which caused that whole seed
+        # to be skipped and left two opaque columns at the image edge. Those
+        # columns then widened the content crop from x448 to x0 and shrank the
+        # sprite to a fraction of its frame.
+        seed = None
+        for dx in range(0, 16, 2):
+            for dy in range(0, 16, 2):
+                px, py = min(max(ax + (dx if ax == 0 else -dx), 0), w - 1), \
+                         min(max(ay + (dy if ay == 0 else -dy), 0), h - 1)
+                if abs(np.array(rgb.getpixel((px, py)), dtype=int) - key).sum() <= tolerance:
+                    seed = (px, py)
+                    break
+            if seed:
+                break
+        if seed and not np.all(np.array(work.getpixel(seed)) == np.array(sentinel)):
             ImageDraw.floodfill(work, seed, sentinel, thresh=tolerance)
 
     filled = np.asarray(work)
@@ -489,15 +507,32 @@ def key_background_to_alpha(img: Image.Image, tolerance: int = 72) -> Image.Imag
     return Image.fromarray(out, "RGBA")
 
 
-def crop_to_content(img: Image.Image, pad: int = 0) -> Image.Image:
-    """Trim fully transparent margins so the subject fills its grid."""
-    alpha = np.asarray(img.convert("RGBA"))[..., 3]
-    ys, xs = np.nonzero(alpha > 8)
-    if len(xs) == 0:
+def crop_to_content(img: Image.Image, pad: int = 0, despeckle: int = 5) -> Image.Image:
+    """Trim transparent margins so the subject fills its grid.
+
+    The bounding box is taken from a despeckled copy of the alpha channel, so a
+    few stray pixels left behind by imperfect keying cannot drag the crop out to
+    the image edge. The returned pixels are the original ones; despeckling only
+    decides where to cut.
+    """
+    rgba = img.convert("RGBA")
+    alpha = np.asarray(rgba)[..., 3]
+
+    mask = Image.fromarray((alpha > 8).astype(np.uint8) * 255, "L")
+    if despeckle > 1:
+        # Opening: erode then dilate. Anything thinner than the filter vanishes.
+        mask = mask.filter(ImageFilter.MinFilter(despeckle)).filter(
+            ImageFilter.MaxFilter(despeckle))
+    core = np.asarray(mask) > 0
+    if not core.any():
+        core = alpha > 8          # everything was speckle-thin; fall back
+    if not core.any():
         return img
+
+    ys, xs = np.nonzero(core)
     x0, x1 = max(0, int(xs.min()) - pad), min(img.width, int(xs.max()) + 1 + pad)
     y0, y1 = max(0, int(ys.min()) - pad), min(img.height, int(ys.max()) + 1 + pad)
-    return img.crop((x0, y0, x1, y1))
+    return rgba.crop((x0, y0, x1, y1))
 
 
 def snap_to_grid(img: Image.Image, colors: int = 16, pixel_size: float | None = None,

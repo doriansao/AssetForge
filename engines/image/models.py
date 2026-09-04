@@ -73,8 +73,12 @@ DEFAULT_MODEL = "flux-schnell"
 
 # Negative prompts only matter for the cfg-guided models. Kept here so every
 # entry point uses the same baseline rather than inventing its own.
+# "drop shadow" and "ground" earn their place: SDXL adds a cast shadow to an
+# isolated object even when the prompt forbids it, and the shadow survives
+# background keying, which then widens the content crop and shrinks the sprite.
 DEFAULT_NEGATIVE = ("blurry, jpeg artifacts, watermark, signature, text, "
-                    "photorealistic, 3d render, smooth gradients, anti-aliased")
+                    "photorealistic, 3d render, smooth gradients, anti-aliased, "
+                    "drop shadow, cast shadow, ground plane, reflection")
 
 
 def get(name: str) -> dict:
