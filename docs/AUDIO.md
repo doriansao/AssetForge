@@ -77,9 +77,12 @@ destroys the transient that makes an impact read as an impact. The default is
 loop on for music, off for effects; `--loop` and `--no-loop` override.
 
 The loop step is the same trick the image engine uses to make a texture tile:
-blend the end into the beginning so the wrap is continuous. Success is measured
-the same way too, as a seam ratio, where 1.0 means the loop point is as smooth as
-the signal's own frame-to-frame motion. The processor reports it.
+blend the end into the beginning so the wrap is continuous. The *measurement*
+does not transfer. The processor reports the wrap as a percentile of ordinary
+sample-to-sample steps, not as a ratio against their mean, because audio step
+distributions are heavily skewed: on a real track the mean step was 0.015 while
+the maximum was 0.224, so a wrap 3.4x the mean is unremarkable. Anything under
+roughly p99 is inaudible; values near p100 mean the cross-fade did not happen.
 
 Equal-power curves are used rather than linear ones, so the blend does not dip in
 perceived loudness halfway through.

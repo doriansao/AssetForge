@@ -126,7 +126,7 @@ def main() -> int:
         processed, info = post.process(clip, rate, args.kind, loop=loop,
                                        crossfade_ms=args.crossfade_ms)
         post.save(processed, post.GAME_RATE, target)
-        seam = f", seam {info['seam_ratio']:.2f}" if info["seam_ratio"] is not None else ""
+        seam = f", seam at p{info['seam_pct']:.0f}" if info["seam_pct"] is not None else ""
         print(f"{target.name}  {info['out_seconds']:.1f}s @{info['out_rate']}Hz"
               f"{' looped' if info['looped'] else ''}{seam}")
 

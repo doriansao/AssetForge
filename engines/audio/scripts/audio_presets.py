@@ -140,7 +140,7 @@ def main() -> int:
             args.output.with_name(f"{args.output.stem}_{i+1:02d}{args.output.suffix}")
         processed, info = post.process(clip, rate, kind)
         post.save(processed, post.GAME_RATE, target)
-        seam = f", seam {info['seam_ratio']:.2f}" if info["seam_ratio"] is not None else ""
+        seam = f", seam at p{info['seam_pct']:.0f}" if info["seam_pct"] is not None else ""
         print(f"{args.preset}: {target.name}  {info['out_seconds']:.1f}s"
               f"{' looped' if info['looped'] else ''}{seam}")
     return 0

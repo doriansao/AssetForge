@@ -139,6 +139,28 @@ At 8px cells it reads as a chessboard, not a blend. Replaced by a shared
 noise field that warps each region's edge, which is both subtler and handles
 features of any width.
 
+### A seam metric does not transfer from images to audio
+
+The image engine measures a tile seam as the wrap discontinuity divided by the
+tile's own mean interior step, where 1.0 means seamless. Reusing that formula for
+audio loops reported 3.45 on a track whose loop is continuous *by construction*,
+because the cross-fade makes the first and last samples adjacent samples of the
+source.
+
+The problem is distribution shape. On that track:
+
+| Statistic | Value |
+|---|---|
+| Mean sample-to-sample step | 0.015 |
+| Median | 0.011 |
+| 95th percentile | 0.046 |
+| Maximum | 0.224 |
+| Wrap step | 0.053 |
+
+A wrap at 3.45x the mean sits at the 97th percentile and well below the maximum,
+which is unremarkable. Audio steps are heavily skewed where image gradients
+across a tile edge are not. The metric now reports a percentile.
+
 ## Constraints worth knowing
 
 - **Autotiling needs regions at least 2 tiles thick.** A 1-tile shore breaks into
