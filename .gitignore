@@ -1,0 +1,26 @@
+# Runtimes and weights. Roughly 40GB; fetched by download_models.py and the
+# setup steps in README.md rather than committed.
+engines/image/ComfyUI/
+engines/image/python_embeded/
+engines/image/update/
+engines/image/advanced/
+engines/image/*.bat
+engines/image/README_VERY_IMPORTANT.txt
+engines/audio/venv/
+
+# Model download staging and AudioCraft's own cache.
+.cache/
+
+# Generated assets. Reproducible from the scripts; a few showcase images are
+# committed under docs/images/ instead.
+out/
+
+# Reference clone of the upstream pixel-art skill. The algorithm itself is
+# vendored into engines/image/scripts/pixel_art_processor.py with attribution;
+# this is only kept locally for provenance.
+vendor/
+
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
