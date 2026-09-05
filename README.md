@@ -64,6 +64,14 @@ Both `asset_presets.py` and `audio_presets.py` take `--list`.
 | Sound effect | `audio_presets.py --preset sword_hit` |
 | Looping music track | `audio_presets.py --preset town_theme` |
 
+## Demo
+
+[demos/moonlit_ruins](demos/moonlit_ruins) is a complete vertical-slice pack for
+a platformer: 11 images, 10 audio files, and a scene composed from them. Nothing
+in it was drawn, recorded or edited by hand.
+
+![Moonlit Ruins scene](docs/images/moonlit_ruins_scene.png)
+
 ## Documentation
 
 - [docs/SETUP.md](docs/SETUP.md) — install both engines, and troubleshooting

@@ -33,7 +33,12 @@ randomly at runtime is how games avoid the machine-gun effect of one repeated
 sample.
 
 Keep `--era` consistent across every image call, or the pack will not look like
-one set.
+one set. If you also append a shared theme phrase for cohesion, **make it
+describe palette and material only**. A phrase naming a place, such as "moonlit
+forest ruins", overrides the preset's isolation clause: the model paints that
+scene behind every sprite, keying then strips only the white margin, and each
+sprite composites as a rectangle. "cool teal and slate blue palette with warm
+amber highlights" gives the same cohesion without the fight.
 
 ## A tileset and a map
 

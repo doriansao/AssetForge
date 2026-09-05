@@ -161,6 +161,25 @@ A wrap at 3.45x the mean sits at the 97th percentile and well below the maximum,
 which is unremarkable. Audio steps are heavily skewed where image gradients
 across a tile edge are not. The metric now reports a percentile.
 
+### A theme phrase must describe palette, not setting
+
+Generating a coherent pack means repeating a shared phrase across every subject.
+The choice of phrase matters more than expected.
+
+`"moonlit forest ruins, cool blue and teal palette with warm lantern accents"`
+appended to every subject produced, for every sprite, a fully painted forest
+scene behind the subject rather than a cutout. The preset's own clause,
+"isolated as a cutout on a plain solid pure white background", lost to it. The
+background keyer then removed only the white margin around the painted scene,
+so every sprite composited as a rectangle of forest, and every 32px terrain tile
+was a tiny landscape instead of a texture.
+
+`"cool teal and slate blue palette with warm amber highlights"` produces the same
+cohesion without competing with the framing.
+
+The rule: a theme may name colours, materials and mood. The moment it names a
+*place*, it becomes a scene instruction and overrides the isolation clause.
+
 ## Constraints worth knowing
 
 - **Autotiling needs regions at least 2 tiles thick.** A 1-tile shore breaks into
