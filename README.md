@@ -22,10 +22,16 @@ asset an engine can use is the work.
 - Windows, Python 3.11 for the audio engine
 - About 40GB of disk for models
 
-## Quick start
+## Install
+
+Neither engine's runtime is in git. **[docs/SETUP.md](docs/SETUP.md) walks
+through both from a fresh clone**, including the exact dependency pins the audio
+engine needs and a troubleshooting table.
+
+Short version, once installed:
 
 ```bash
-python engines/image/scripts/download_models.py
+python engines/image/scripts/download_models.py --all
 cd engines/image && ./python_embeded/python.exe -s ComfyUI/main.py --windows-standalone-build --listen 127.0.0.1 --port 8188
 ```
 
@@ -60,6 +66,8 @@ Both `asset_presets.py` and `audio_presets.py` take `--list`.
 
 ## Documentation
 
+- [docs/SETUP.md](docs/SETUP.md) — install both engines, and troubleshooting
+- [docs/RECIPES.md](docs/RECIPES.md) — worked end-to-end workflows
 - [docs/IMAGE.md](docs/IMAGE.md) — image engine, post-processing, tilesets
 - [docs/AUDIO.md](docs/AUDIO.md) — audio engine, looping, game audio conventions
 - [docs/MODELS.md](docs/MODELS.md) — every model, when to use which, measured comparisons

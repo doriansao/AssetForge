@@ -280,13 +280,15 @@ def main(tiles_dir=None, out_name="village_map.png", borders="noise"):
                       ground_at=lambda x, y: painted[y, x])
 
     out = os.path.join(ASSETS, out_name)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     canvas.convert("RGB").save(out)
     print(f"map {canvas.width}x{canvas.height}px  ({COLS}x{ROWS} tiles)  {drawn} sprites -> {out}")
 
     crop = canvas.crop((15 * TILE, 8 * TILE, 31 * TILE, 20 * TILE))
-    crop.resize((crop.width * 2, crop.height * 2), Image.NEAREST).convert("RGB").save(
-        os.path.join(ASSETS, "village_detail.png"))
-    print("detail 2x nearest -> village_detail.png")
+    detail = os.path.join(ASSETS, f"{os.path.splitext(out_name)[0]}_detail.png")
+    os.makedirs(os.path.dirname(detail), exist_ok=True)
+    crop.resize((crop.width * 2, crop.height * 2), Image.NEAREST).convert("RGB").save(detail)
+    print(f"detail 2x nearest -> {os.path.basename(detail)}")
     return 0
 
 

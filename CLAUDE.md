@@ -10,6 +10,10 @@ and the traps that cost time here.
 
 ## Before anything else
 
+If anything is not installed or a command fails in a way not covered below, go
+to `docs/SETUP.md`. It has the full install for both engines and a
+symptom-to-cause troubleshooting table.
+
 The image engine needs ComfyUI running:
 
 ```bash
@@ -38,6 +42,10 @@ fails on import.
 | Post-process an existing sound | `audio_processor.py` |
 
 Both preset scripts take `--list`.
+
+`docs/RECIPES.md` has worked end-to-end workflows: a starter asset pack for a
+platformer, a tileset and map, exporting autotiles for Godot or Unity, lighting
+a tileset, and how to add a preset to either engine.
 
 ## Picking an image model
 
@@ -107,6 +115,19 @@ with human skin, which needs separate base, shadow and highlight tones.
   public mirrors; see `download_models.py`.
 - **Paths are derived from `paths.py` in each engine.** Do not hard-code absolute
   paths; the repo must stay clonable anywhere.
+
+## Output locations
+
+Generated files go to `out/image/` and `out/audio/`, both gitignored. Scripts
+create the directories they need, so a nested `--output out/image/icons/x.png`
+works without preparation.
+
+When `generate_asset.py --pixel-art` runs, the full-resolution frame is kept
+alongside the sprite as `<output>_raw.png`. That is deliberate: the grid snapper
+reads its block size from those gradients, so the raw frame is the only thing
+that can be reprocessed at a different target size or palette later. If a sprite
+comes out wrong, look at the raw frame first to tell a generation problem from a
+post-processing one.
 
 ## Read before changing anything
 

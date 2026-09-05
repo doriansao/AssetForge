@@ -30,7 +30,7 @@ import models as model_registry
 
 SERVER = paths.SERVER
 
-# Node ids as laid out in flux_api.json.
+# Node ids, identical across every workflow in engines/image/workflows/.
 NODE_POSITIVE = "4"
 NODE_NEGATIVE = "5"
 NODE_LATENT = "6"

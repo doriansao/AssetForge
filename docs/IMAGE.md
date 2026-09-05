@@ -94,8 +94,9 @@ python engines/image/scripts/build_village.py               # -> composed map
 `make_tiles.py` makes terrain seamless by cross-fading each edge into its
 opposite, downsamples to 32px, and snaps everything to one shared adaptive
 palette. The shared palette is what makes 20 independently generated tiles look
-like one artist drew them. `--palette` accepts `adaptive` (128), `adaptive32`
-(default) or `db32`.
+like one artist drew them. `--palette` accepts `adaptive` (32 colours, the
+default), `adaptive128`, or `db32` for a fixed DawnBringer 32. Fewer colours
+measured better here; see [FINDINGS.md](FINDINGS.md).
 
 `build_village.py --borders` chooses how terrain regions meet:
 

@@ -251,7 +251,7 @@ def main(palette_mode="adaptive", out_dir=None):
         pal = fixed_palette(DB32)
         label = f"DawnBringer 32 (fixed)"
     else:
-        size = PALETTE_SIZE if palette_mode == "adaptive" else int(palette_mode.replace("adaptive", ""))
+        size = PALETTE_SIZE if palette_mode == "adaptive" else int(palette_mode.removeprefix("adaptive"))
         pal = shared_palette(list(terrain.values()) + list(objects.values()), size)
         label = f"{size} adaptive"
     print(f"\n[palette] {label}")
@@ -265,7 +265,7 @@ def main(palette_mode="adaptive", out_dir=None):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Build the pixel-art tileset.")
     ap.add_argument("--palette", default="adaptive",
-                    help="adaptive (128), adaptive32, or db32")
+                    help="adaptive (32, the default), adaptive128, or db32")
     ap.add_argument("--tiles-dir", default=None)
     a = ap.parse_args()
     sys.exit(main(a.palette, a.tiles_dir))
