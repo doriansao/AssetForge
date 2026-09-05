@@ -452,7 +452,69 @@ def kmeans_plus_plus(
 # ---------------------------------------------------------------------------
 
 
-def key_background_to_alpha(img: Image.Image, tolerance: int = 72) -> Image.Image:
+# Chroma keys the generator can ask for, as the two channels that must dominate
+# the third. Named rather than given as RGB because the model never returns the
+# exact colour asked for -- one request for #FF00FF came back as (184,55,114) --
+# and hue dominance is what matters, not the value.
+CHROMA_KEYS = {
+    "magenta": (0, 2, 1),   # R and B over G
+    "green": (1, 1, 0),     # G over R and B  (second index unused)
+}
+
+
+def detect_chroma(rgb: np.ndarray, margin: int = 40, coverage: float = 0.5) -> str | None:
+    """Say which chroma key the border is painted in, if any."""
+    border = np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]]).astype(np.int32)
+    r, g, b = border[:, 0], border[:, 1], border[:, 2]
+    if ((r - g > margin) & (b - g > margin)).mean() > coverage:
+        return "magenta"
+    if ((g - r > margin) & (g - b > margin)).mean() > coverage:
+        return "green"
+    return None
+
+
+def key_chroma_to_alpha(img: Image.Image, kind: str, margin: int = 40,
+                        contract: int = 1) -> Image.Image:
+    """Key out a chroma background by hue dominance, at any brightness.
+
+    This is why chroma keys exist, and it solves a problem no amount of
+    post-processing on a white background does. A cast shadow falling on the key
+    is a *darker version of the key colour*, so a test on hue rather than on
+    value removes the subject's shadow along with the background, in one step.
+    On a white field the same shadow is a pale grey that is not the background
+    colour, survives keying, and then has to be hunted down by heuristics that
+    cannot reliably tell a shadow from a pair of boots.
+
+    Choose a key whose strong channels are not the subject's. Magenta is the
+    default and suits the cool palettes here; use green for warm or red-dominant
+    subjects, which would otherwise lose pixels to a magenta test.
+
+    `contract` erodes the matte by a pixel to drop the key-tinted fringe around
+    the silhouette, which is cheaper and more predictable than despill.
+    """
+    rgb = np.asarray(img.convert("RGB")).astype(np.int32)
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+
+    if kind == "magenta":
+        bg = (r - g > margin) & (b - g > margin)
+    elif kind == "green":
+        bg = (g - r > margin) & (g - b > margin)
+    else:
+        raise ValueError(f"unknown chroma key {kind!r}")
+
+    keep = ~bg
+    if contract > 0:
+        size = contract * 2 + 1
+        mask = Image.fromarray((keep * 255).astype(np.uint8), "L")
+        keep = np.asarray(mask.filter(ImageFilter.MinFilter(size))) > 0
+
+    out = np.dstack([rgb.astype(np.uint8), np.where(keep, 255, 0).astype(np.uint8)])
+    out[~keep] = (0, 0, 0, 0)
+    return Image.fromarray(out, "RGBA")
+
+
+def key_background_to_alpha(img: Image.Image, tolerance: int = 130,
+                            enclosed: bool = True) -> Image.Image:
     """Flood the flat background in from the border and turn it into alpha.
 
     The upstream skill asks the model for a chroma-key background and strips it
@@ -462,6 +524,16 @@ def key_background_to_alpha(img: Image.Image, tolerance: int = 72) -> Image.Imag
 
     Flood fill rather than a global colour threshold, so background-coloured
     pixels inside the subject survive.
+
+    The default tolerance is deliberately loose. A contact shadow on a white
+    field is a soft grey that shades continuously out of the background, so a
+    fill wide enough to walk into it removes the shadow as part of the
+    background, while the subject stays far outside the threshold because it is
+    darker and saturated. Measured on one render: at tolerance 72 the sprite was
+    904px tall and ended in a 2px shadow tail; at 130 it was 809px and ended
+    flat on the boots, with the opaque pixel count essentially unchanged. The
+    window from about 120 to 240 is stable; past 300 it starts eating the
+    subject.
     """
     rgb = img.convert("RGB")
     w, h = rgb.size
@@ -501,10 +573,115 @@ def key_background_to_alpha(img: Image.Image, tolerance: int = 72) -> Image.Imag
 
     filled = np.asarray(work)
     bg = np.all(filled == np.array(sentinel), axis=-1)
+    if enclosed:
+        bg = clear_enclosed_background(arr, bg, key, tolerance)
 
     out = np.dstack([arr, np.where(bg, 0, 255).astype(np.uint8)])
     out[bg] = (0, 0, 0, 0)
     return Image.fromarray(out, "RGBA")
+
+
+def _components(mask: np.ndarray):
+    """Yield 4-connected components of a boolean mask as coordinate lists."""
+    h, w = mask.shape
+    seen = np.zeros_like(mask)
+    for sy, sx in zip(*np.nonzero(mask)):
+        if seen[sy, sx]:
+            continue
+        stack, comp = [(int(sy), int(sx))], []
+        seen[sy, sx] = True
+        while stack:
+            y, x = stack.pop()
+            comp.append((y, x))
+            for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not seen[ny, nx]:
+                    seen[ny, nx] = True
+                    stack.append((ny, nx))
+        yield comp
+
+
+def clear_enclosed_background(rgb: np.ndarray, bg: np.ndarray, key: np.ndarray,
+                              tolerance: int, min_frac: float = 0.0015) -> np.ndarray:
+    """Also key out background-coloured regions the border flood fill cannot reach.
+
+    A flood fill entering from the edge stops at the silhouette, so any hole
+    fully enclosed by the subject stays opaque: the gap between a creature's
+    front legs, the space inside a fence, the loop of a handle. Those regions
+    then composite into a scene as solid blocks of background colour.
+
+    Only regions above `min_frac` of the frame are cleared. Small specks of
+    near-white are usually genuine highlights -- an eye glint, a metal
+    specular -- and removing those would punch holes in the art.
+    """
+    near = (np.abs(rgb.astype(np.int32) - key).sum(-1) <= tolerance) & ~bg
+    if not near.any():
+        return bg
+    min_area = max(24, int(min_frac * near.size))
+    for comp in _components(near):
+        if len(comp) >= min_area:
+            ys, xs = np.array(comp).T
+            bg[ys, xs] = True
+    return bg
+
+
+def trim_ground_plinth(img: Image.Image, lighten: float = 1.25,
+                       max_frac: float = 0.22) -> Image.Image:
+    """Remove the ground shadow or plinth drawn beneath an isolated subject.
+
+    Diffusion models put a contact shadow, a dirt disc or a stone base under an
+    object even when told not to, and Flux Schnell ignores negative prompts
+    entirely so it cannot be suppressed at generation time. It survives
+    background keying because it is not the background colour, and then does two
+    kinds of damage: it dirties the sprite, and because it sits below the feet it
+    becomes the bottom of the bounding box, so bottom-anchored placement rests
+    the *shadow* on the ground and the character floats above it.
+
+    Detection is by brightness, not by shape. A shadow cast onto a white field is
+    a pale grey or tan, while the subject is darker and more saturated, and this
+    separates cleanly in practice: on one render the body averaged luminance 64
+    against 126 for the shadow rows, and on another 100 against 182. Rows are
+    removed from the bottom up while they stay far lighter than the body, and the
+    scan stops at the first row that does not qualify.
+
+    Shape-based detection was tried first and abandoned. Width alone cannot tell
+    a shadow from a pair of boots: the narrowest row in the search band is
+    usually the bottom edge of the shadow itself, and searching further up finds
+    the gap between a character's legs and cuts the legs off. Brightness does not
+    have that failure mode, because legs are as dark as the body.
+    """
+    rgba = np.asarray(img.convert("RGBA"))
+    alpha = rgba[..., 3] > 8
+    if not alpha.any():
+        return img
+
+    lum = rgba[..., :3].astype(np.float32).mean(-1)
+    h = rgba.shape[0]
+    limit = int(h * (1.0 - max_frac))
+
+    # Reference brightness from the subject proper, excluding the band that
+    # might be plinth, so a large plinth cannot drag the reference up.
+    body = alpha.copy()
+    body[limit:] = False
+    if not body.any():
+        return img
+    reference = float(np.median(lum[body])) * lighten
+
+    # Collect every row in the band that reads as plinth, then cut at the
+    # highest one. Stopping at the first row that fails going upwards is not
+    # enough: a shadow is densest, and therefore darkest, in its middle, so the
+    # scan halts partway and leaves the top of the shadow attached.
+    bright = [k for k in range(limit, h)
+              if alpha[k].any() and float(lum[k][alpha[k]].mean()) > reference]
+    if not bright:
+        return img
+
+    cut = min(bright)
+    span = h - cut
+    # Guard against a single stray bright row high in the band dragging the cut
+    # up: most of what is being removed has to look like plinth.
+    if span <= 0 or len(bright) / span < 0.6:
+        return img
+    return img.crop((0, 0, img.width, cut))
 
 
 def crop_to_content(img: Image.Image, pad: int = 0, despeckle: int = 5) -> Image.Image:
@@ -598,7 +775,8 @@ def nearest_upscale(img: Image.Image, scale: int | None = None,
 
 def process(img: Image.Image, target_size: int | None = 64, palette_size: int = 16,
             remove_background: bool = True, crop: bool = True,
-            grid: str = "detect", alpha_threshold: int = 1) -> dict:
+            grid: str = "detect", alpha_threshold: int = 1,
+            trim_plinth: bool = True) -> dict:
     """Full post-process. Returns the sprite plus what the detector decided.
 
     Upstream has no notion of a target size -- it reports whatever native
@@ -623,7 +801,27 @@ def process(img: Image.Image, target_size: int | None = 64, palette_size: int = 
 
     info: dict = {"input_size": img.size, "grid_mode": grid}
 
-    img = key_background_to_alpha(img) if remove_background else img.convert("RGBA")
+    if remove_background:
+        # Prefer a chroma key when the render has one: it takes the shadow with
+        # it. Fall back to the flood fill for plain white backgrounds, where the
+        # shadow then has to be trimmed separately and less reliably.
+        kind = detect_chroma(np.asarray(img.convert("RGB")))
+        info["key"] = kind or "flood"
+        if kind:
+            img = key_chroma_to_alpha(img, kind)
+        else:
+            img = key_background_to_alpha(img)
+            # Crop before trimming. The trim measures what fraction of the rows
+            # it is about to remove actually look like plinth, and a full frame
+            # has a band of empty rows under the subject that dilutes that
+            # fraction below the guard, so the trim silently never fires.
+            img = crop_to_content(img)
+            if trim_plinth:
+                before = img.height
+                img = trim_ground_plinth(img)
+                info["plinth_rows_removed"] = before - img.height
+    else:
+        img = img.convert("RGBA")
     if crop:
         img = crop_to_content(img)
     info["after_crop"] = img.size
@@ -660,6 +858,8 @@ def main() -> int:
                    help="also write a NEAREST preview scaled by this factor")
     p.add_argument("--keep-background", action="store_true")
     p.add_argument("--no-crop", action="store_true")
+    p.add_argument("--keep-plinth", action="store_true",
+                   help="keep the ground shadow the model drew under the subject")
     p.add_argument("--grid", choices=("detect", "force"), default="detect",
                    help="detect the native block size then resample (default), or "
                         "drive the walker at target-size cells directly")
@@ -668,7 +868,8 @@ def main() -> int:
     info = process(Image.open(args.input), target_size=args.target_size or None,
                    palette_size=args.palette_size,
                    remove_background=not args.keep_background,
-                   crop=not args.no_crop, grid=args.grid)
+                   crop=not args.no_crop, grid=args.grid,
+                   trim_plinth=not args.keep_plinth)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     info["sprite"].save(args.output)

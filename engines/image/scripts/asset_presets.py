@@ -50,6 +50,18 @@ ERAS = {
     "modern": "modern indie pixel art, around 32 colours, painterly shading within a strict pixel grid",
 }
 
+# White, and keyed with a loose flood fill. Models draw a contact shadow
+# whatever the prompt says, and Flux Schnell ignores negative prompts entirely,
+# so it cannot be prevented at generation time. It is removed instead by keying
+# wide enough to walk from the white background into the soft grey of the
+# shadow; see key_background_to_alpha.
+#
+# A magenta chroma key was tried and reverted. It removes shadows perfectly,
+# because a shadow on the key is a darker shade of the key. But magenta's strong
+# channels are red and blue, and this kind of palette has both -- warm wood and
+# blue-grey stone -- so the keyer punched holes through crates and left magenta
+# fringing on stone. pixel_art_processor.key_chroma_to_alpha is still there for
+# palettes that genuinely suit one.
 CUTOUT = ("isolated as a cutout on a plain solid pure white background, "
           "no shadow, no ground patch, no platform, no text")
 
@@ -153,7 +165,8 @@ def build(preset_name, subject, era="16bit", seed=None, lora=None,
     elif p["post"] == "snap":
         info = pap.process(raw, target_size=p["target"], palette_size=p["palette"])
     else:  # box
-        keyed = pap.crop_to_content(pap.key_background_to_alpha(raw))
+        keyed = pap.key_background_to_alpha(raw)
+        keyed = pap.crop_to_content(pap.trim_ground_plinth(keyed))
         side = p["target"]
         scale = side / max(keyed.size)
         info = {"sprite": keyed.resize((max(1, round(keyed.width * scale)),

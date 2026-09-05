@@ -64,11 +64,18 @@ def parallax(canvas: Image.Image, layer: Image.Image, y: int, opacity: float) ->
     canvas.alpha_composite(faded.crop((0, 0, canvas.width, band.height)), (0, y))
 
 
+# Ledges as (x0, x1, row). Kept clear of where the actors stand: a two-tile-tall
+# character bottom-anchored on the floor occupies the row above it too, so a
+# ledge sharing that row cuts through the sprite.
+LEDGES = ((3, 7, 5), (12, 16, 4))
+PIT = (9, 12)
+
+
 def solid(grid: np.ndarray) -> None:
-    """Mark the level geometry: floor, a pit, and three floating ledges."""
+    """Mark the level geometry: floor, a pit, and two floating ledges."""
     grid[GROUND_ROW:, :] = 1
-    grid[GROUND_ROW:, 11:14] = 0                 # pit
-    for x0, x1, y in ((4, 8, 5), (10, 13, 4), (15, 19, 6)):
+    grid[GROUND_ROW:, PIT[0]:PIT[1]] = 0
+    for x0, x1, y in LEDGES:
         grid[y, x0:x1] = 1
 
 
@@ -131,14 +138,15 @@ def main() -> int:
     solid(grid)
     draw_terrain(canvas, grid, load("ground"), load("underground"))
 
-    # Props sit on whatever surface is under them; the ledges are at rows 4-6.
-    place(canvas, load("pillar"), 17.0, 5)
-    place(canvas, load("brazier"), 6.0, 4)
+    # Props stand on whatever surface is beneath them: the brazier on the left
+    # ledge, everything else on the floor.
+    place(canvas, load("brazier"), 4.5, LEDGES[0][2] - 1)
+    place(canvas, load("crate"), 1.0, GROUND_ROW - 1)
     place(canvas, load("crate"), 2.0, GROUND_ROW - 1)
-    place(canvas, load("crate"), 3.0, GROUND_ROW - 1)
+    place(canvas, load("pillar"), 18.4, GROUND_ROW - 1)
 
-    place(canvas, load("hero"), 8.5, GROUND_ROW - 1)
-    place(canvas, load("enemy"), 15.5, GROUND_ROW - 1, flip=True)
+    place(canvas, load("hero"), 6.5, GROUND_ROW - 1)
+    place(canvas, load("enemy"), 14.6, GROUND_ROW - 1, flip=True)
 
     hud(canvas, [load("icon_potion"), load("icon_key"), load("icon_gem")])
 

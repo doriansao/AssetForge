@@ -161,6 +161,55 @@ A wrap at 3.45x the mean sits at the 97th percentile and well below the maximum,
 which is unremarkable. Audio steps are heavily skewed where image gradients
 across a tile edge are not. The metric now reports a percentile.
 
+### Contact shadows are a keying problem, not a shape problem
+
+Every diffusion model draws a contact shadow, a dirt disc or a stone base under
+an isolated subject regardless of the prompt, and Flux Schnell ignores negative
+prompts entirely so it cannot be suppressed at generation time. Left in, it does
+two kinds of damage: it dirties the sprite, and because it sits below the feet it
+becomes the bottom of the bounding box, so bottom-anchored placement rests the
+*shadow* on the ground and the character floats above it.
+
+What works is keying wide enough to absorb it. A shadow on white is a soft grey
+that shades continuously out of the background, so a flood fill with a loose
+tolerance walks straight into it, while the subject stays outside the threshold
+because it is darker and saturated. On one render:
+
+| Flood-fill tolerance | Sprite height | Bottom rows |
+|---|---|---|
+| 72 | 904px | 0, 0, 1, 2 (shadow tail) |
+| 130 | 809px | 48, 48, 49 (flat on the boots) |
+
+The opaque pixel count barely moved, so it removed the shadow and nothing else.
+The stable window is roughly 120 to 240; past 300 it starts eating the subject.
+The default is now 130.
+
+Two other approaches were tried and are worth knowing about.
+
+**Shape-based trimming, partially kept.** Scanning the alpha for the point where
+the subject narrows to its contact point and the plinth widens again does work,
+but width alone cannot tell a shadow from a pair of boots: the narrowest row in
+the search band is usually the bottom edge of the shadow itself, and searching
+further up the sprite finds the gap between a character's legs and cuts the legs
+off. Switching the test from width to *brightness* removes that failure mode,
+because legs are as dark as the body while a shadow on white is not. It survives
+as a second pass for whatever the loose key leaves behind.
+
+**A magenta chroma key, tried and reverted.** It removes shadows perfectly, since
+a shadow on the key is a darker shade of the key and a hue test catches it at any
+brightness. But the key's strong channels must not be the subject's, and
+magenta's are red and blue, which a palette of warm wood and blue-grey stone both
+have: the keyer punched holes straight through crates and left magenta fringing
+on stone. The implementation is kept for palettes that genuinely suit one.
+
+### Crop before measuring anything about the bottom of a sprite
+
+The brightness trim above silently did nothing for a full day of debugging. It
+guards against over-trimming by requiring that most of the rows it is about to
+remove look like plinth, and on an uncropped frame the band of empty rows beneath
+the subject dilutes that fraction below the guard. Cropping to content first
+fixed every case at once.
+
 ### A theme phrase must describe palette, not setting
 
 Generating a coherent pack means repeating a shared phrase across every subject.
