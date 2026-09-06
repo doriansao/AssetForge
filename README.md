@@ -4,12 +4,15 @@ A local, offline pipeline for generating 2D game assets: sprites, tilesets,
 icons, characters, sound effects and music. Everything runs on your own GPU.
 Nothing is sent anywhere.
 
-Two engines share one repository:
+Three engines share one repository:
 
 - **Image** drives ComfyUI headlessly across Flux Schnell, SDXL and SD 1.5, then
   post-processes renders into real pixel art with correct grids and palettes.
 - **Audio** drives Meta's AudioCraft (MusicGen and AudioGen), then post-processes
   raw output into trimmed, level-matched, seamlessly looping game audio.
+- **Mesh** turns one keyed render into a textured GLB with Microsoft's TRELLIS.2
+  and renders it into 2.5D sprite frames with Blender, so a turret or hull is
+  consistent from every angle.
 
 The generation half is the easy half. Most of what is here is post-processing,
 because a raw diffusion render is a *picture of* a sprite and a raw AudioCraft
@@ -63,6 +66,10 @@ Both `asset_presets.py` and `audio_presets.py` take `--list`.
 | Normal maps for 2D lighting | `make_normalmap.py` |
 | Sound effect | `audio_presets.py --preset sword_hit` |
 | Looping music track | `audio_presets.py --preset town_theme` |
+| Clean alpha for a rendered sprite | `remove_background.py` (BiRefNet) |
+| Same object from another camera angle | `edit_asset.py --model qwen-edit --angle ...` |
+| Textured 3D mesh from a render | `engines/mesh/scripts/generate_mesh.py` |
+| Sprite frames from a mesh | `engines/mesh/scripts/render_sprites.py` |
 
 ## Demo
 
@@ -99,6 +106,11 @@ engines/
   audio/
     venv/             runtime (not in git)
     scripts/          generation and post-processing
+  mesh/
+    venv/             Python 3.11 + torch 2.7 (not in git)
+    ComfyUI/          second ComfyUI, port 8189 (not in git)
+    ComfyUI-Trellis2/ TRELLIS.2 node with its wheels (not in git)
+    scripts/          image to GLB, GLB to sprites
 out/                  generated assets (not in git)
 vendor/               third-party sources, see licences below
 docs/

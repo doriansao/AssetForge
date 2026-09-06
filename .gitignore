@@ -7,6 +7,9 @@ engines/image/advanced/
 engines/image/*.bat
 engines/image/README_VERY_IMPORTANT.txt
 engines/audio/venv/
+engines/mesh/venv/
+engines/mesh/ComfyUI/
+engines/mesh/ComfyUI-Trellis2/
 
 # Model download staging and AudioCraft's own cache.
 .cache/

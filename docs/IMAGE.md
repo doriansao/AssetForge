@@ -78,6 +78,62 @@ Palette size by subject: 8 to 16 for props and constrained eras, 24 for detailed
 props, 32 to 48 for anything with human skin, which needs base, shadow and
 highlight tones to stay separate.
 
+## Keying and reference edits
+
+Two scripts beside `generate_asset.py` cover what a text-to-image render cannot:
+a clean alpha, and the same object from another angle.
+
+### remove_background.py (BiRefNet)
+
+```bash
+python engines/image/scripts/remove_background.py --input render.png --output sprite.png --crop
+```
+
+Drives ComfyUI's native `RemoveBackground` node with
+`models/background_removal/birefnet.safetensors` (from `Comfy-Org/BiRefNet`).
+BiRefNet is a matting model, so it keeps near-white foreground on a white
+plate and gives soft anti-aliased edges. On the Cowduction set it cut five
+renders cleanly in about a second each, including an ivory hull on white and
+a pixel-art render, where the flood-fill keyer in `pixel_art_processor.py`
+had eaten the hull panels. Use BiRefNet for smooth high-resolution sprites;
+keep the flood fill for true pixel art, where a soft edge is wrong.
+
+### edit_asset.py (Qwen-Image-Edit-2511, FLUX.2 klein 4B)
+
+```bash
+# same object, new camera (fal's Multiple Angles LoRA)
+python engines/image/scripts/edit_asset.py --model qwen-edit --ref hull.png \
+    --angle "front view high-angle shot medium shot" --output hull_top.png
+# instruction edit
+python engines/image/scripts/edit_asset.py --model qwen-edit --ref hull.png \
+    --prompt "Open the cargo hatch on the top deck. Keep everything else identical." --output hatch.png
+# klein: text to image, reference edit, or a 2x2 multi-view sheet
+python engines/image/scripts/edit_asset.py --model klein --prompt "..." --output out.png
+python engines/image/scripts/edit_asset.py --model klein --ref hull.png --prompt "the same saucer from directly above" --output top.png
+python engines/image/scripts/edit_asset.py --model klein --ref turret.png --lora flux-2-klein-4b-spritesheet-lora.safetensors --prompt "2x2 sprite sheet" --output sheet.png
+```
+
+`qwen-edit` runs Qwen-Image-Edit-2511 as a Q4_K_M GGUF (12.3 GB, needs the
+`ComfyUI-GGUF` custom node) with the 4-step Lightning LoRA, `qwen_2.5_vl_7b`
+fp8 as text encoder and the Qwen-Image VAE. `--angle` adds the Multiple Angles
+LoRA and prefixes its `<sks>` trigger; the vocabulary is in the script's
+docstring. About 90 s per edit on a 16GB card, most of it model shuffling.
+
+`klein` runs FLUX.2 klein 4B distilled (bf16, 7.2 GB) with the Qwen3-4B text
+encoder and the FLUX.2 VAE through `Flux2Scheduler` + `SamplerCustomAdvanced`,
+4 steps, cfg 1, 9 to 17 s per image. References are fed as `ReferenceLatent`
+conditioning, one per `--ref`. fal's sprite-sheet LoRA turns one object into a
+2x2 sheet: two isometric views, a side view and a top-down view.
+
+All weights are Apache 2.0 and are downloaded by hand from Hugging Face; see
+`docs/MODELS.md` for file names and folders.
+
+**VRAM trap.** The Q4 GGUF loads "completely" at 12.7 GB and leaves nothing
+for the text encoder and activations, and the run sits at step 0 forever at
+100 % GPU. Start the server with `--reserve-vram 2.5` so ComfyUI offloads part
+of the model to pinned RAM, and make sure no other server (the mesh engine on
+port 8189 keeps 6 GB resident after a job) is holding the card.
+
 ## Tilesets
 
 Three stages, deliberately separate so you can re-run one without the others.

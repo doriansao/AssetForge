@@ -40,12 +40,28 @@ fails on import.
 | 2D dynamic lighting | `make_normalmap.py` |
 | Post-process an existing image | `pixel_art_processor.py` |
 | Post-process an existing sound | `audio_processor.py` |
+| Clean alpha for a smooth sprite | `remove_background.py` (BiRefNet) |
+| Same object from another angle, or an instruction edit | `edit_asset.py --model qwen-edit` |
+| Fast reference edit, 2x2 multi-view sheet | `edit_asset.py --model klein` |
+| A textured 3D mesh from one render | `engines/mesh/scripts/generate_mesh.py` (TRELLIS.2, port 8189) |
+| Sprite frames from a mesh, any angle | `engines/mesh/scripts/render_sprites.py` (Blender) |
 
 Both preset scripts take `--list`.
 
 `docs/RECIPES.md` has worked end-to-end workflows: a starter asset pack for a
 platformer, a tileset and map, exporting autotiles for Godot or Unity, lighting
 a tileset, and how to add a preset to either engine.
+
+## Three engines, three environments
+
+`engines/image` (Python 3.13, torch 2.13, port 8188), `engines/audio` (its own
+venv, older torch) and `engines/mesh` (Python 3.11 venv, torch 2.7 + cu128, a
+second ComfyUI on port 8189 for TRELLIS.2's compiled wheels). Never install one
+engine's packages into another. `docs/MESH.md` covers the mesh engine.
+
+The image and mesh servers share one 16GB card. **Run one heavy job at a
+time**: the mesh server keeps about 6GB resident after a job, and a 12GB Qwen
+edit next to it thrashes at step 0 forever. Stop the server you are not using.
 
 ## Picking an image model
 
@@ -113,6 +129,18 @@ with human skin, which needs separate base, shadow and highlight tones.
   factors.
 - **Black Forest Labs' FLUX.1-schnell repo is gated.** The UNET and VAE come from
   public mirrors; see `download_models.py`.
+- **A new model file is invisible until the server rescans.** ComfyUI caches
+  folder listings; a checkpoint or GGUF that lands after startup shows up as
+  "not in []" until the directory mtime changes or the server restarts. And
+  restarting means killing the old process first: a second instance on a busy
+  port exits quietly and the stale one keeps serving.
+- **Start the image server with `--reserve-vram 2.5` for Qwen-Image-Edit.**
+  Otherwise the Q4 GGUF loads completely and starves the text encoder.
+- **The mesh engine's export node is not an output node.** Poll ComfyUI's
+  history for completion status, not for outputs, or the poller hangs forever.
+- **Pin torchaudio to the torch build in the mesh venv.** ComfyUI's
+  requirements pull the newest torchaudio, which fails to load against torch
+  2.7 with `WinError 127` and stops the server from starting.
 - **Paths are derived from `paths.py` in each engine.** Do not hard-code absolute
   paths; the repo must stay clonable anywhere.
 

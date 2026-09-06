@@ -17,6 +17,8 @@ Selected with `--model` on `generate_asset.py` and `asset_presets.py`. Defined i
 | `juggernaut-xl` | 1024px | 30 | ~13s | Glossy product-render look, SDXL fine-tune |
 | `dreamshaper-xl` | 1024px | 6 | ~5s | Detailed stylised objects, Lightning-fast |
 | `rdxl-pixel-art` | 1024px | 25 | ~10s | Pixel-art checkpoint on a Pony base; ignores object prompts |
+| `qwen-edit` (edit_asset.py) | 1024px | 4 | ~90s | Reference edits, Multiple Angles turnarounds |
+| `klein` (edit_asset.py) | 1024px | 4 | ~12s | Fast generate + edit with references, sprite-sheet LoRA |
 
 **flux-schnell** follows prompts better than either alternative. It respects
 "a single X isolated on a white background" where SDXL will hand you a sheet of
@@ -62,6 +64,25 @@ two jet fighters and a tank car, and a turret prompt gave a tank car with a
 character lying beside it. For pixel-art objects use the `pixel-art-xl` LoRA
 on `sdxl`, `dreamshaper-xl` or `juggernaut-xl` instead, which kept the saucer
 on every seed.
+
+**qwen-edit** and **klein** are driven by `edit_asset.py`, not the registry,
+because they need reference-image wiring the KSampler workflows do not have.
+Files, all Apache 2.0:
+
+| File | Folder | Source |
+|---|---|---|
+| `qwen-image-edit-2511-Q4_K_M.gguf` | `unet/` | unsloth/Qwen-Image-Edit-2511-GGUF |
+| `qwen_2.5_vl_7b_fp8_scaled.safetensors` | `text_encoders/` | Comfy-Org/Qwen-Image_ComfyUI |
+| `qwen_image_vae.safetensors` | `vae/` | Comfy-Org/Qwen-Image_ComfyUI |
+| `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors` | `loras/` | lightx2v/Qwen-Image-Edit-2511-Lightning |
+| `qwen-image-edit-2511-multiple-angles-lora.safetensors` | `loras/` | fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA |
+| `flux-2-klein-4b.safetensors` | `diffusion_models/` | black-forest-labs/FLUX.2-klein-4B |
+| `qwen_3_4b.safetensors`, `flux2-vae.safetensors` | `text_encoders/`, `vae/` | Comfy-Org/vae-text-encorder-for-flux-klein-4b |
+| `flux-2-klein-4b-spritesheet-lora.safetensors` | `loras/` | fal/flux-2-klein-4b-spritesheet-lora |
+| `birefnet.safetensors` | `background_removal/` | Comfy-Org/BiRefNet |
+
+The GGUF needs `custom_nodes/ComfyUI-GGUF` (city96) and `pip install gguf`
+in the embedded Python. klein 9B exists but is non-commercial; 4B is Apache.
 
 **sd15** is small and fast with the deepest ControlNet ecosystem, which is what
 you want for pose-controlled character sprite sheets. Prompt adherence is the
