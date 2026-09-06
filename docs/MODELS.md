@@ -14,6 +14,9 @@ Selected with `--model` on `generate_asset.py` and `asset_presets.py`. Defined i
 | `flux-schnell` (default) | 1024px | 4 | ~5s | Prompt adherence, framing |
 | `sdxl` | 1024px | 25 | ~13s | Pixel art via LoRA, huge LoRA ecosystem |
 | `sd15` | 512px | 25 | ~6s | Speed, ControlNet pose control |
+| `juggernaut-xl` | 1024px | 30 | ~13s | Glossy product-render look, SDXL fine-tune |
+| `dreamshaper-xl` | 1024px | 6 | ~5s | Detailed stylised objects, Lightning-fast |
+| `rdxl-pixel-art` | 1024px | 25 | ~10s | Pixel-art checkpoint on a Pony base; ignores object prompts |
 
 **flux-schnell** follows prompts better than either alternative. It respects
 "a single X isolated on a white background" where SDXL will hand you a sheet of
@@ -26,6 +29,39 @@ compliance. With `pixel-art-xl` at strength 1.2 it produces genuinely chunky
 blocks straight from the model, rather than a smooth illustration that needs the
 grid snapper afterwards. Without a LoRA its prompt adherence is the weakest of
 the three. It is a UNet, so ControlNet and circular-padding tricks apply.
+
+**juggernaut-xl** is Juggernaut XL "Ragnarok" from
+[civitai.com/models/133005](https://civitai.com/models/133005), an SDXL
+fine-tune. It is not fetched by `download_models.py`; download the safetensors
+from Civitai into `ComfyUI/models/checkpoints/juggernautXL_ragnarok.safetensors`.
+Defaults follow the author's guidance (30 steps, cfg 4.5, dpmpp_2m_sde karras).
+It renders clean, glossy, product-shot objects, but like every SDXL model it
+reads the prompt through CLIP, which truncates at about 75 tokens: a long
+layout description is silently cut off. Keep prompts short and front-load the
+shapes that matter. Measured on the Cowduction mothership concepts: the long
+Flux prompts lost most of their structure here; the same ideas in under 60
+tokens landed. Its licence on Civitai allows generated images to be used
+commercially; check the model page before shipping.
+
+**dreamshaper-xl** is DreamShaper XL "Lightning DPM++ SDE" from
+[civitai.com/models/112902](https://civitai.com/models/112902). It is an SDXL
+Lightning distil: 4 to 8 steps at cfg 2 with `dpmpp_sde`, so it is as fast as
+Flux while keeping SDXL's negative prompt. On the Cowduction mothership
+concepts it produced the most detailed hulls of any model here, with panel
+seams, ribs and glass canopies that Flux's toy look lacks, and it followed a
+short prompt well. It drifts toward teal or green metal unless the hull colour
+is stated early in the prompt and the drift is named in the negative. Same
+75-token CLIP limit as every SDXL model.
+
+**rdxl-pixel-art** is RDXL Pixel Art "Pony 2" from
+[civitai.com/models/638637](https://civitai.com/models/638637), a pixel-art
+checkpoint on a Pony Diffusion base, wired with clip skip 2 and the score-tag
+prefix that base expects. It draws convincing pixel art but inherits Pony's
+disregard for object prompts: a flying-saucer mothership prompt gave a fish,
+two jet fighters and a tank car, and a turret prompt gave a tank car with a
+character lying beside it. For pixel-art objects use the `pixel-art-xl` LoRA
+on `sdxl`, `dreamshaper-xl` or `juggernaut-xl` instead, which kept the saucer
+on every seed.
 
 **sd15** is small and fast with the deepest ControlNet ecosystem, which is what
 you want for pose-controlled character sprite sheets. Prompt adherence is the
@@ -40,7 +76,8 @@ word is embedded, not only how it is denoised.
 
 | LoRA | Base | Trigger | Notes |
 |---|---|---|---|
-| `pixel-art-xl` | SDXL | "pixel art" | The reference pixel-art LoRA. Use strength ~1.2. |
+| `pixel-art-xl` | SDXL | none | The reference pixel-art LoRA, v1.0. Use strength ~1.2. |
+| `pixel-art-xl-v1.1` | SDXL | none | Same LoRA, v1.1 ("better coherence"). Author says no trigger word, and better *without* "pixel art" in the prompt. Works on DreamShaper and Juggernaut too. |
 | `top-down-pixel-art-flux-lora` | Flux dev | none | Works on schnell, improves framing. |
 | `ume_modern_pixelart` | Flux dev | `umempart` | Produced artefacts on schnell at 0.9. |
 
